@@ -1,0 +1,6 @@
+# Build and dependency artifacts produced by docs/operator-quickstart.md §2.
+# Without this, `git add -A` after a walk commits ~92 packages of node_modules.
+node_modules/
+package-lock.json
+.svelte-kit/
+.wrangler/
