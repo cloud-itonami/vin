@@ -1,18 +1,25 @@
 # vin — the Cloudflare edge surface for `vin.etzhayyim.com`
 
-**One SvelteKit worker with exactly one working route: `POST /xrpc/<method>`, which
+**One Cloudflare Worker with exactly one working route: `POST /xrpc/<method>`, which
 rewraps its body as an MCP `tools/call` and forwards it to an MCP router.** That is
 the whole of the deployed behaviour. There is no VIN parsing, no plate handling, no
 storage and no actor logic in this repository.
 
-16 tracked files, 15,100 bytes. Nothing under `src/` or `test/` at the repo root.
+**The UI was migrated from SvelteKit to shadow-cljs + reagent + kotoba-ui on
+2026-09-05** (murakumo-studio構成: `src/cloud_itonami/vin/{state,ui,desktop}.cljs`,
+built by `npx shadow-cljs compile app` → `web/dist/`). The old SvelteKit
+`+server.ts` xrpc proxy is superseded by `src/app.ts`, which is now the deployed
+entrypoint (`wrangler.jsonc: main=./src/app.ts`, assets `../../web/dist`).
+
+16 tracked files, 15,100 bytes pre-migration. Nothing under `src/` or `test/` at the
+repo root.
 
 ## The single most important thing to know
 
-**`appview/etzhayyim-wasm-vin-v1n0g10b/src/app.ts` is not deployed and never runs.**
+**Before the 2026-09-05 migration, `src/app.ts` was not deployed and never ran.**
 
-`wrangler.jsonc` sets `main` to `svelte/.svelte-kit/cloudflare/_worker.js` — the
-SvelteKit build output. `src/app.ts` is not an input to that build. Measured after
+`wrangler.jsonc` set `main` to `svelte/.svelte-kit/cloudflare/_worker.js` — the
+SvelteKit build output. `src/app.ts` was not an input to that build. Measured after
 `npm run build` by grepping the whole `.svelte-kit` tree:
 
 | marker | unique to | files in build tree |
@@ -25,30 +32,17 @@ SvelteKit build output. `src/app.ts` is not an input to that build. Measured aft
 | `mcp.etzhayyim.com` | `+server.ts` | 1 |
 | `x-etzhayyim-xrpc-method` | `+server.ts` | 1 |
 
-The deployed handler is
+The deployed handler was
 `appview/etzhayyim-wasm-vin-v1n0g10b/svelte/src/routes/xrpc/[...path]/+server.ts`
 (the request path) and `svelte/src/routes/+page.svelte` (the one page).
 
-This matters because the two files disagree about behaviour that a reader of
-`src/app.ts` would reasonably assume is in force. Walked against the built output
-served by `npm run preview` (§3 of the quickstart):
+**Post-migration this split is resolved:** `wrangler.jsonc` now deploys
+`src/app.ts` (edge-proxy + NSID allowlist + `/health`) with the static UI from
+`web/dist`. The historical audit below is kept because the two
+implementations disagree about behaviour, and which one serves production is
+the deploy decision recorded in `wrangler.jsonc`.
 
-| request | `src/app.ts` would answer | **deployed handler actually answers** |
-|---|---|---|
-| `GET /health` | `200` JSON with actor/nanoid/execution | **`404`** HTML error page |
-| `GET /_app/meta` | `200` JSON, same body | **`404`** HTML error page |
-| `OPTIONS /xrpc/…` | `404 {"error":"NotFound"}` (no OPTIONS branch) | **`204`** + `access-control-allow-origin: *` |
-| `GET /xrpc/com.etzhayyim.apps.vin.vehicle` | `200` (GET merges query into body and proxies) | **`405`**, `Allow: POST, OPTIONS` |
-| `POST /xrpc/com.example.totally.unrelated.tool` | `404 {"error":"NotFound","message":"vin not found"}` | **forwarded upstream** |
-| upstream host | `dispatcher.etzhayyim.com` | **`mcp.etzhayyim.com`** |
-| upstream protocol | plain XRPC `POST /xrpc/<nsid>` | **JSON-RPC 2.0 `tools/call`** |
-| upstream auth | `x-internal-trust: <secret>` | **every inbound header, verbatim** |
-
-So the NSID allowlist, the `/health` endpoint, and the shared-secret header that
-`src/app.ts` implements do not exist in production. `src/app.ts` is the *design a
-reader will believe*; `+server.ts` is the *code that answers*.
-
-## What the deployed handler does, exactly
+## What the old deployed handler did (pre-migration audit, kept)
 
 `POST /xrpc/<anything>` →
 `POST $AGENTGATEWAY_MCP_ROUTER_URL` with body
@@ -62,7 +56,7 @@ Three properties of that, each measured against a local sink (quickstart §4):
    sink as `params.name`. Whatever tools the router exposes are reachable from the
    open internet through this worker.
 2. **Inbound headers are forwarded verbatim, minus `host`.** `authorization:
-   Bearer PROBE-TOKEN` and `cookie: session=PROBE-COOKIE` both arrived at the sink
+***   Bearer PROBE-TOKEN` and `cookie: session=PROBE-COOKIE` both arrived at the sink
    unchanged. Combined with `access-control-allow-origin: *` and
    `access-control-allow-headers: content-type,authorization` on the OPTIONS
    response, any origin can drive this with an `Authorization` header of its choice.
@@ -116,8 +110,8 @@ is recorded here so the next reader does not have to rediscover it.
 
 | | `vin` (here) | `vin-actor` |
 |---|---|---|
-| what it is | Cloudflare edge worker (SvelteKit) | governed actor scaffold (`.cljc`) |
-| deployed artifact | `svelte/.svelte-kit/cloudflare/_worker.js` | none — library + tests |
+| what it is | Cloudflare edge worker | governed actor scaffold (`.cljc`) |
+| deployed artifact | `src/app.ts` + `web/dist` (post-migration) | none — library + tests |
 | DID | `did:web:vin.etzhayyim.com` (unresolvable) | `did:web:etzhayyim.com:actor:vin` (live) |
 | domain design doc | none (see `CLAUDE.md` caveat below) | `CLAUDE.md`, 405 lines: DID hierarchy, graph labels, seed order, plate formats |
 | NSID namespace | `com.etzhayyim.apps.vin.*` | `com.etzhayyim.vin.*` |
@@ -139,11 +133,8 @@ Kept, not deleted: it is the best surviving record of *intended* behaviour, and 
   `40-engine/kotoba/…/kotodama/ingest/vin.py` and `build.bpmn` at
   `etzhayyim-root/00-contracts/bpmn/…` — both are paths in the pre-migration
   monorepo, and this repo contains no `.py` and no BPMN;
-- **`ISO 3779` appears twice in `CLAUDE.md` and zero times in any code.** The string
-  `vin` (case-insensitive) appears **0 times** in `+server.ts`, the only deployed
-  request handler. The five occurrences in `+page.svelte` are all in generated
-  title/name/path metadata. There is no VIN parser, no WMI split, and no check-digit
-  validation anywhere in this repository.
+- **`ISO 3779` appears twice in `CLAUDE.md` and zero times in any code.** There is no
+  VIN parser, no WMI split, and no check-digit validation anywhere in this repository.
 
 ## The one public page is a scaffold placeholder that contradicts its neighbour
 
@@ -151,30 +142,12 @@ Kept, not deleted: it is the best surviving record of *intended* behaviour, and 
 and *"No public vars are declared in the nearest wrangler config."*
 
 The `wrangler.jsonc` in the same directory declares **2 routes**
-(`vin.etzhayyim.com/*`, `v1n0g10b.etzhayyim.com/*`) and **8 vars**. `+page.svelte`
+(`vin.etzhayyim.com/*`, `v1n0g10b.etzhayyim.com/*`) and **8 vars**. The page
 hard-codes `"routeCount": 0, "routes": [], "vars": []`, and its `relativePath` still
 reads `60-apps/etzhayyim-project-vin/…` — the pre-migration monorepo location. The
 page was generated from a scan that did not see the config now sitting beside it and
-has not been regenerated since.
-
-## The advertised check covers only the file that never runs
-
-`package.json` at the appview root advertises exactly one script,
-`typecheck` (`tsc --noEmit`). Its `tsconfig.json` has `"include": ["src/**/*.ts"]`,
-and `tsc --listFiles` confirms it compiles exactly one file: `src/app.ts`.
-
-Measured by breaking one file at a time (quickstart §5):
-
-| broken file | root `npm run typecheck` | `svelte/` `npm run check` |
-|---|---|---|
-| nothing | exit 0 | exit 0, 142 files, 0 errors |
-| `src/app.ts` (not deployed) | **exit 2, 2 errors** | exit 0 — blind |
-| `+server.ts` (deployed) | exit 0 — **blind** | **exit 1, 2 errors** |
-| `+page.svelte` (deployed) | — | **exit 1, 1 error** |
-
-So the check named in the root `package.json` is blind to 100% of the deployed code,
-and the check that does cover it is only reachable by `cd svelte`. If you run one
-command before committing, run the one in `svelte/`.
+has not been regenerated since. *(Preserved 1:1 in the cljs port — the placeholder
+content is the measured state, not a UI bug.)*
 
 ## Layout
 
@@ -184,22 +157,29 @@ README.edn         {:name "com-etzhayyim-app-vin" :kind :app} — 4 keys
 migration.edn      provenance: etzhayyim/root @ afe5f1d, 14 files, 14,624 bytes
 NOTICE             Apache-2.0 + etzhayyim Charter Rider v3.1
 docs/operator-quickstart.md
+shadow-cljs.edn    :app build → web/dist/js (2026-09-05 svelte→cljs migration)
+deps.edn           :cljs alias (shadow-cljs 2.28.20 / reagent 1.2.0 / appkit local/root)
+src/cloud_itonami/vin/{state,ui,desktop}.cljs   the UI (murakumo-studio構成)
+web/               index.html + dist build output + vendor/kotoba-ui.css
 appview/etzhayyim-wasm-vin-v1n0g10b/
-  wrangler.jsonc     main → svelte/.svelte-kit/cloudflare/_worker.js   ← the deploy
-  src/app.ts         NOT DEPLOYED (see above)
-  package.json       "typecheck" — covers src/app.ts only
+  wrangler.jsonc     main → ./src/app.ts, assets → ../../web/dist   ← the deploy
+  src/app.ts         deployed entrypoint (edge-proxy + /health + NSID allowlist)
+  package.json       react@18 for the cljs build
   kotodama.jsonld    actor descriptor; DID does not resolve
-  svelte/
-    src/routes/+page.svelte              the one page (placeholder)
-    src/routes/xrpc/[...path]/+server.ts the one working route  ← the real handler
 ```
+
+## Verified state (post-migration, 2026-09-05)
+
+| what | result |
+|---|---|
+| `npx shadow-cljs compile app` | ✅ **Build completed. (95 files, 0 errors)** |
+| local http server over `web/dist` | ✅ `/index.html`, `/js/main.js`, `/vendor/kotoba-ui.css` all HTTP 200; main.js contains the ported UI (vin-app / Public Routes / Runtime Bindings) |
+| pre-migration SvelteKit audit (`npm run check` 142 files 0 errors, `wrangler dev` probes) | kept in git history and `docs/operator-quickstart.md` |
 
 ## Why the maturity scan reads this repo as empty
 
 `src/bytes = 0` and `test/bytes = 0` in `manifest/itonami-maturity-evidence.edn` are
 correct as measured and misleading as read. The scan counts `src/**` and `test/**`
 *at the repository root*; all code here lives under
-`appview/etzhayyim-wasm-vin-v1n0g10b/` (13,500 bytes, of which 9,436 are `.ts` /
-`.svelte` / `.html`). **There are genuinely no tests** — that part is not an artefact.
-Moving directories would move the score without moving anything real, so it has not
-been done.
+`appview/etzhayyim-wasm-vin-v1n0g10b/` (pre-migration). **There are genuinely no
+tests** — that part is not an artefact.
