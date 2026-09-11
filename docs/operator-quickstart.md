@@ -6,7 +6,7 @@
 >
 > ```bash
 > npm install
-> npx shadow-cljs compile app
+> amu compile --target wasm32-browser app
 > ```
 >
 > ```
