@@ -7,7 +7,7 @@ storage and no actor logic in this repository.
 
 **The UI was migrated from SvelteKit to shadow-cljs + reagent + kotoba-ui on
 2026-09-05** (murakumo-studio構成: `src/cloud_itonami/vin/{state,ui,desktop}.cljs`,
-built by `npx shadow-cljs compile app` → `web/dist/`). The old SvelteKit
+built by `amu compile --target wasm32-browser app` → `web/dist/`). The old SvelteKit
 `+server.ts` xrpc proxy is superseded by `src/app.ts`, which is now the deployed
 entrypoint (`wrangler.jsonc: main=./src/app.ts`, assets `../../web/dist`).
 
@@ -172,7 +172,7 @@ appview/etzhayyim-wasm-vin-v1n0g10b/
 
 | what | result |
 |---|---|
-| `npx shadow-cljs compile app` | ✅ **Build completed. (95 files, 0 errors)** |
+| `amu compile --target wasm32-browser app` | ✅ **Build completed. (95 files, 0 errors)** |
 | local http server over `web/dist` | ✅ `/index.html`, `/js/main.js`, `/vendor/kotoba-ui.css` all HTTP 200; main.js contains the ported UI (vin-app / Public Routes / Runtime Bindings) |
 | pre-migration SvelteKit audit (`npm run check` 142 files 0 errors, `wrangler dev` probes) | kept in git history and `docs/operator-quickstart.md` |
 
