@@ -113,7 +113,7 @@ is recorded here so the next reader does not have to rediscover it.
 | what it is | Cloudflare edge worker | governed actor scaffold (`.cljc`) |
 | deployed artifact | `src/app.ts` + `web/dist` (post-migration) | none — library + tests |
 | DID | `did:web:vin.etzhayyim.com` (unresolvable) | `did:web:etzhayyim.com:actor:vin` (live) |
-| domain design doc | none (see `CLAUDE.md` caveat below) | `CLAUDE.md`, 405 lines: DID hierarchy, graph labels, seed order, plate formats |
+| domain design doc | none (see `AGENTS.md` caveat below) | `AGENTS.md`, 405 lines: DID hierarchy, graph labels, seed order, plate formats |
 | NSID namespace | `com.etzhayyim.apps.vin.*` | `com.etzhayyim.vin.*` |
 
 **The two NSID namespaces do not match.** `vin`'s `kotodama.jsonld` subscribes to
@@ -122,7 +122,7 @@ is recorded here so the next reader does not have to rediscover it.
 actor lands in a collection the appview is watching. Not fixed here — picking the
 winner is a contract decision across both repos.
 
-## `CLAUDE.md` describes a system this repo does not contain
+## `AGENTS.md` describes a system this repo does not contain
 
 Kept, not deleted: it is the best surviving record of *intended* behaviour, and the
 `vin-actor` design doc elaborates the same model. But read it knowing that:
@@ -133,7 +133,7 @@ Kept, not deleted: it is the best surviving record of *intended* behaviour, and 
   `40-engine/kotoba/…/kotodama/ingest/vin.py` and `build.bpmn` at
   `etzhayyim-root/00-contracts/bpmn/…` — both are paths in the pre-migration
   monorepo, and this repo contains no `.py` and no BPMN;
-- **`ISO 3779` appears twice in `CLAUDE.md` and zero times in any code.** There is no
+- **`ISO 3779` appears twice in `AGENTS.md` and zero times in any code.** There is no
   VIN parser, no WMI split, and no check-digit validation anywhere in this repository.
 
 ## The one public page is a scaffold placeholder that contradicts its neighbour
@@ -152,7 +152,7 @@ content is the measured state, not a UI bug.)*
 ## Layout
 
 ```
-CLAUDE.md          domain design — for vin-actor's model, not this code (see above)
+AGENTS.md          domain design — for vin-actor's model, not this code (see above)
 README.edn         {:name "com-etzhayyim-app-vin" :kind :app} — 4 keys
 migration.edn      provenance: etzhayyim/root @ afe5f1d, 14 files, 14,624 bytes
 NOTICE             Apache-2.0 + etzhayyim Charter Rider v3.1
